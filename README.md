@@ -150,7 +150,7 @@ YALE | SIEMENS Trio | 28/28
 
 https://drive.google.com/drive/folders/132afz9uQw6frwIm_Qw2nDiOyYzF9vLoU?usp=sharing
 
-"Please download the data from the above Google Drive link and place it in the 'Data/Data_folder/' directory."
+"Please download the data from the above Google Drive link and place it in the 'Data/' directory."
 
 ## 4. Experiments
 
