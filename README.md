@@ -1,5 +1,5 @@
 # DeepLearning_project2023
-autism spectrum disorder classification with multi site dataset
+Autism spectrum disorder classification with multi-site dataset
 
 [Notices]
 1) "Please do not modify the seeds (42, 56, 96, 100, 777) and test data."
@@ -148,7 +148,7 @@ UM_1 | GE Signa | 53/53
 USM | SIEMENS Trio | 46/25
 YALE | SIEMENS Trio | 28/28
 
-https://drive.google.com/drive/folders/1fDH3ULunE0tSVefErfpaZr7LX9vkEAjS?usp=share_link
+[https://drive.google.com/drive/folders/1fDH3ULunE0tSVefErfpaZr7LX9vkEAjS?usp=share_link](https://drive.google.com/drive/folders/132afz9uQw6frwIm_Qw2nDiOyYzF9vLoU?usp=drive_link)
 
 "Please download the data from the above Google Drive link and place it in the 'Data/Data_folder/' directory."
 
