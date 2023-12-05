@@ -132,7 +132,7 @@ def main(seed, timestamp):
     parser.add_argument("--device", default=device)
 
     # training hyperparameter
-    # parser.add_argument('--seed', type=int, default=500, help='random seed')
+    parser.add_argument('--seed', type=int, default=500, help='random seed')
     parser.add_argument('--lr', default=1e-5, type=float, help='learning rate')
     parser.add_argument('--weight_decay', default=1e-2, type=float, help='weight decay')
     parser.add_argument('--batch_size', default=16, type=int, help='batch size')
