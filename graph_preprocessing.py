@@ -57,6 +57,6 @@ def pValueMasking(feature, t_test, p_value, binary=False, abs=True):
 # define edge
 def define_node_edge(train_data, test_data, t, p_value, edge_binary, node_binary, edge_abs, node_abs, node_mask=False):
     train_static_edge = pValueMasking(feature=train_data, t_test=t, p_value=p_value, binary=edge_binary, abs=edge_abs)
-    test_static_edge = pValueMasking(fxeature=test_data, t_test=t, p_value=p_value, binary=edge_binary, abs=edge_abs)
+    test_static_edge = pValueMasking(feature=test_data, t_test=t, p_value=p_value, binary=edge_binary, abs=edge_abs)
 
     return train_static_edge, test_static_edge
