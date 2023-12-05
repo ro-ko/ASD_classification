@@ -152,7 +152,7 @@ def main(seed, timestamp):
     parser.add_argument("--timestamp", default=timestamp, type=str, help="")
     parser.add_argument('--root_dir', default="Data/", type=str, help='Download dir')
 
-    args = parser.parse_args()
+    args = parser.parse_args('')
     print('Arguments: \n', args)
 
     data_folder = args.root_dir  # '\Data\
