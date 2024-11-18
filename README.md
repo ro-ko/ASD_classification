@@ -1,4 +1,5 @@
-# DeepLearning_project2023
+# DeepLearning_project
+
 Autism spectrum disorder classification with multi-site dataset
 
 [Notices]
