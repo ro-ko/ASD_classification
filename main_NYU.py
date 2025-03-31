@@ -15,11 +15,7 @@ from metric import accuracy, sensitivity, specificity, get_clf_eval
 from model import GAT, GCN, ChebyNet
 from seed import set_seed
 from tqdm import tqdm
-
-
-# save results & metric
-def save_results():
-    pass
+import wandb 
 
 
 def train(model, optimizer, criterion, train_loader):
@@ -45,12 +41,8 @@ def train(model, optimizer, criterion, train_loader):
     loss = train_epoch_cost / len(train_loader),
     sen = sensitivity(train_out_stack, train_label_stack),
     spe = specificity(train_out_stack, train_label_stack),
-    _a, _b, _c, f1, _d = get_clf_eval(train_label_stack, train_out_stack)
+    _, _, _, f1, _ = get_clf_eval(train_label_stack, train_out_stack)
 
-    print(acc, loss, sen, spe, f1)
-    print(_a, _b, _c, f1, _d)
-    exit()
-    
     return loss[0], acc[0], sen[0], spe[0], f1
 
 
@@ -83,6 +75,7 @@ def trainer(args, seed, train_x, test_x, train_y, test_y):
 
     #  GAT, GCN, ChebNet
     model = GCN(args).to(args.device)
+    wandb.watch(model)
 
     # binary classification
     criterion = nn.CrossEntropyLoss()
@@ -111,12 +104,9 @@ def trainer(args, seed, train_x, test_x, train_y, test_y):
     for epoch in tqdm(range(1, args.num_epochs + 1)):
         train_loss, train_acc, train_sen, train_spe, train_f1 = train(model, optimizer, criterion, train_loader)
         test_loss, test_acc, test_sen, test_spe, test_f1 = test(model, criterion, test_loader)
-
-        # train_log = f"[=] TRAIN_EPOCH [{epoch}/{args.num_epochs}] | LOSS [{round(train_loss, 4)}] ACC [{round(train_acc, 4)}] SENS [{round(train_sen, 4)}] SPE [{round(train_spe, 4)}] F1 [{round(train_f1, 4)}]"
-        # print(train_log)
-        # val_log = f"[=] TEST_EPOCH [{epoch}/{args.num_epochs}] | LOSS [{round(test_loss, 4)}] ACC [{round(test_acc, 4)}] SENS [{round(test_sen, 4)}] SPE [{round(test_spe, 4)}] F1 [{round(test_f1, 4)}]"
-        # print(val_log)
-
+        wandb.log({f"train_loss_{seed}": train_loss, f"train_acc_{seed}": train_acc, f"train_sen_{seed}": train_sen, f"train_spe_{seed}": train_spe, f"train_f1_{seed}": train_f1,
+                    f"test_loss_{seed}": test_loss, f"test_acc_{seed}": test_acc, f"test_sen_{seed}": test_sen, f"test_spe_{seed}": test_spe, f"test_f1_{seed}": test_f1})
+    
         # save train results
         with open(path_save_info.replace(".csv", "_train.csv"), "a") as f:
             f.write('{},{},{},{},{},{}\n'.format(epoch, train_loss, train_acc, train_sen, train_spe, train_f1))
@@ -131,7 +121,7 @@ def trainer(args, seed, train_x, test_x, train_y, test_y):
 
 
 def main(seed, timestamp):
-
+    
     ## config
     parser = argparse.ArgumentParser(description='Classification of the ABIDE dataset using a GNN')
 
@@ -162,6 +152,9 @@ def main(seed, timestamp):
 
     args = parser.parse_args('')
     print('Arguments: \n', args)
+
+    wandb.init(project="ASD_classification", name=f"NYU_site_{args.timestamp}")
+    wandb.config.update(args)
 
     args.embCh = list(map(int, re.findall("\d+", str(args.embCh))))
 
@@ -197,31 +190,15 @@ def main(seed, timestamp):
 if __name__ == "__main__":
     # 4x5 matrix for 4 metrics and 5 seeds
     total_result = [[0 for j in range(5)] for i in range(4)]
-    # avg_test_loss = []
-    # avg_test_acc = []
-    # avg_test_sen = []
-    # avg_test_spe = []
-    # avg_test_f1 = []
 
     timestamp = datetime.today().strftime("%Y%m%d%H%M%S")
     # set seed
     seed_list = [42, 56, 96, 100, 777]
+
     for s in seed_list:
         # run main
         args, test_loss, test_acc, test_sen, test_spe, test_f1 = main(s, timestamp)
-    #     avg_test_loss.append(test_loss)
-    #     avg_test_acc.append(test_acc)
-    #     avg_test_sen.append(test_sen)
-    #     avg_test_spe.append(test_spe)
-    #     avg_test_f1.append(test_f1)
 
-    # # print("NYU site dataset results")
-    # print("NYU site dataset results")
-    # print("test loss: ", np.mean(np.array(avg_test_loss)))
-    # print("test acc: ", np.mean(np.array(avg_test_acc)))
-    # print("test sen: ", np.mean(np.array(avg_test_sen)))
-    # print("test spe: ", np.mean(np.array(avg_test_spe)))
-    # print("test f1: ", np.mean(np.array(avg_test_f1)))
 
     # save seed initialization
     with open(f'{args.root_dir}results/model{args.timestamp}/all_seed_result{args.timestamp}.csv', 'w') as f:
@@ -263,9 +240,7 @@ if __name__ == "__main__":
                 {np.nanstd(total_result[1], ddof=1) * 100:.2f}, \
                 {np.nanstd(total_result[2], ddof=1) * 100:.2f}, \
                 {np.nanstd(total_result[3], ddof=1) * 100:.2f}')
-
-    # print("="*10+"average results"+"="*10)
-    # print('avg,{:.2f},{:.2f},{:.2f},{:.2f}'.format(np.mean(total_result[0]) * 100, np.mean(total_result[1]) * 100,
-    #                                             np.mean(total_result[2]) * 100, np.mean(total_result[3]) * 100))
-    # print('std,{:.2f},{:.2f},{:.2f},{:.2f}'.format(np.nanstd(total_result[0]) * 100, np.nanstd(total_result[1]) * 100,
-    #                                               np.nanstd(total_result[2]) * 100,np.mean(total_result[2]) * 100))
+        
+    wandb.log({"avg_acc": np.mean(total_result[0]) * 100, "avg_sen": np.mean(total_result[1]) * 100, "avg_spe": np.mean(total_result[2]) * 100, "avg_f1": np.mean(total_result[3]) * 100})
+    wandb.log({"std_acc": np.nanstd(total_result[0], ddof=1) * 100, "std_sen": np.nanstd(total_result[1], ddof=1) * 100, "std_spe": np.nanstd(total_result[2], ddof=1) * 100, "std_f1": np.nanstd(total_result[3], ddof=1) * 100})
+    wandb.finish()

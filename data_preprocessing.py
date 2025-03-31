@@ -24,7 +24,7 @@ def data_loader(args, train_x, train_label, valid_x, valid_label):
     train_Node_list = torch.FloatTensor(train_x).to(args.device)
 
     train_A_list = torch.FloatTensor(train_static_edge).to(args.device)
-    
+
     train_label = torch.LongTensor(train_label).to(args.device)
     train_dataset = []
 
@@ -50,6 +50,7 @@ def data_loader(args, train_x, train_label, valid_x, valid_label):
     for i, sub in enumerate(valid_A_list):
         edge, attr = dense_to_sparse(sub)
         valid_dataset.append(Data(x=valid_Node_list[i], y=valid_label[i], edge_index=edge, edge_attr=attr))
-    validLoader = DataLoader(valid_dataset, shuffle=False, batch_size=len(valid_dataset))  # full batch
+    # full batch
+    validLoader = DataLoader(valid_dataset, shuffle=False, batch_size=len(valid_dataset))
 
     return trainLoader, validLoader
