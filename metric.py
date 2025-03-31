@@ -9,6 +9,7 @@ def accuracy(out, label):
     correct = (out == label).sum().item() / total
     return correct
 
+# recall
 def sensitivity(out, label):
     out = np.array(out)
     label = np.array(label)
@@ -26,7 +27,7 @@ def specificity(out, label):
 
 def get_clf_eval(y_test, pred):
     accuracy = accuracy_score(y_test, pred)
-    precision = precision_score(y_test, pred)
+    precision = precision_score(y_test, pred, zero_division=0)
     recall = recall_score(y_test, pred)
     f1 = f1_score(y_test, pred)
     roc_score = roc_auc_score(y_test, pred)
