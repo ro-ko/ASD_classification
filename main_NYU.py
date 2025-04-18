@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 
 from data_preprocessing import data_loader
 from metric import accuracy, sensitivity, specificity, get_clf_eval
-from model import GAT, GCN, ChebyNet
+from model import GAT, GCN, ChebyNet, GIN
 from seed import set_seed
 from tqdm import tqdm
 import wandb 
@@ -74,7 +74,7 @@ def test(model, criterion, test_loader):
 def trainer(args, seed, train_x, test_x, train_y, test_y):
 
     #  GAT, GCN, ChebNet
-    model = GCN(args).to(args.device)
+    model = GAT(args, 128, 2, 1).to(args.device)
     wandb.watch(model)
 
     # binary classification
@@ -100,6 +100,7 @@ def trainer(args, seed, train_x, test_x, train_y, test_y):
     with open(path_save_info.replace(".csv", "info.txt"), "w") as f:
         f.write(f'model: {str(model)}\n\n Parameters : {args}\n\n Optimizer C : {optimizer}\n\n ')
 
+    test_loss_high, test_acc_high, test_sen_high, test_spe_high, test_f1_high = 0, 0, 0, 0, 0
     # training
     for epoch in tqdm(range(1, args.num_epochs + 1)):
         train_loss, train_acc, train_sen, train_spe, train_f1 = train(model, optimizer, criterion, train_loader)
@@ -111,7 +112,7 @@ def trainer(args, seed, train_x, test_x, train_y, test_y):
         with open(path_save_info.replace(".csv", "_train.csv"), "a") as f:
             f.write('{},{},{},{},{},{}\n'.format(epoch, train_loss, train_acc, train_sen, train_spe, train_f1))
             
-        # save train results
+        # save test results
         with open(path_save_info.replace(".csv", "_test.csv"), "a") as f:
             f.write('{},{},{},{},{},{}\n'.format(epoch, test_loss, test_acc, test_sen, test_spe, test_f1))
 
@@ -126,7 +127,7 @@ def main(seed, timestamp):
     parser = argparse.ArgumentParser(description='Classification of the ABIDE dataset using a GNN')
 
     # pytorch base
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")  # cuda 0, 1
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")  # cuda 0, 1
     parser.add_argument("--device", default=device)
 
     # training hyperparameter
@@ -153,7 +154,10 @@ def main(seed, timestamp):
     args = parser.parse_args('')
     print('Arguments: \n', args)
 
-    wandb.init(project="ASD_classification", name=f"NYU_site_{args.timestamp}")
+    # wandb.init(project="ASD_classification", name=f"NYU_site_{args.timestamp}")
+
+    wandb.init(project="ASD_classification", name=f"NYU_site_GCN_{args.timestamp}")
+
     wandb.config.update(args)
 
     args.embCh = list(map(int, re.findall("\d+", str(args.embCh))))

@@ -13,21 +13,17 @@ import torch_geometric
 import csv
 import scipy.io as sio
 from scipy import stats
-from nilearn import connectome
+# from nilearn import connectome
 from datetime import datetime
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.model_selection import train_test_split
 
 from data_preprocessing import data_loader
 from metric import accuracy, sensitivity, specificity, get_clf_eval
-from model import GAT, GCN, ChebyNet
+from model import GAT, GCN, ChebyNet, GIN
 from seed import set_seed
-
-
-
-# save results & metric
-def save_results():
-    pass
+from tqdm import tqdm
+import wandb 
 
 
 def train(model, optimizer, criterion, train_loader):
@@ -87,7 +83,8 @@ def test(model, criterion, test_loader):
 def trainer(args, seed, train_x, test_x, train_y, test_y):
 
     # define model
-    model = GCN(args).to(args.device)  #  GAT, GCN, ChebNet
+    model = GAT(args, 128, 2, 1).to(args.device)  #  GAT, GCN, ChebNet
+    wandb.watch(model)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, betas=args.betas)
@@ -95,9 +92,9 @@ def trainer(args, seed, train_x, test_x, train_y, test_y):
     train_loader, test_loader = data_loader(args, train_x, train_y, test_x, test_y)
 
     # save log
-    if not (os.path.isdir('Data/results/model{}'.format(args.timestamp))):
-        os.makedirs(os.path.join('Data/results/model{}'.format(args.timestamp)))
-    path_save_info = 'Data/results/model{}'.format(args.timestamp) + os.path.sep + "train_info{}_{}.csv".format(args.timestamp, seed)
+    if not (os.path.isdir(f'{args.root_dir}results/model{args.timestamp}')):
+        os.makedirs(os.path.join(f'{args.root_dir}results/model{args.timestamp}'))
+    path_save_info = f'{args.root_dir}results/model{args.timestamp}' + os.path.sep + f'train_info{args.timestamp}_{seed}.csv'
     # train
     with open(path_save_info.replace(".csv", "_train.csv"), "w") as f:
         f.write("epoch, loss, acc, sen, spec, F1\n")
@@ -107,17 +104,15 @@ def trainer(args, seed, train_x, test_x, train_y, test_y):
 
     # save parameter log
     with open(path_save_info.replace(".csv", "info.txt"), "w") as f:
-        f.write('model: {}\n\n Parameters : {}\n\n Optimizer C : {}\n\n '.format(str(model), args, optimizer))
+        f.write(f'model: {str(model)}\n\n Parameters : {args}\n\n Optimizer C : {optimizer}\n\n ')
 
     # training
-    for epoch in range(1, args.num_epochs + 1):
+    for epoch in tqdm(range(1, args.num_epochs + 1)):
         train_loss, train_acc, train_sen, train_spe, train_f1 = train(model, optimizer, criterion, train_loader)
         test_loss, test_acc, test_sen, test_spe, test_f1 = test(model, criterion, test_loader)
-
-        train_log = f"[=] TRAIN_EPOCH [{epoch}/{args.num_epochs}] | LOSS [{round(train_loss, 4)}] ACC [{round(train_acc, 4)}] SENS [{round(train_sen, 4)}] SPE [{round(train_spe, 4)}] F1 [{round(train_f1, 4)}]"
-        print(train_log)
-        val_log = f"[=] TEST_EPOCH [{epoch}/{args.num_epochs}] | LOSS [{round(test_loss, 4)}] ACC [{round(test_acc, 4)}] SENS [{round(test_sen, 4)}] SPE [{round(test_spe, 4)}] F1 [{round(test_f1, 4)}]"
-        print(val_log)
+       
+        wandb.log({f"train_loss_{seed}": train_loss, f"train_acc_{seed}": train_acc, f"train_sen_{seed}": train_sen, f"train_spe_{seed}": train_spe, f"train_f1_{seed}": train_f1,
+                    f"test_loss_{seed}": test_loss, f"test_acc_{seed}": test_acc, f"test_sen_{seed}": test_sen, f"test_spe_{seed}": test_spe, f"test_f1_{seed}": test_f1})
 
         # save results
         with open(path_save_info.replace(".csv", "_train.csv"), "a") as f:
@@ -137,12 +132,12 @@ def main(seed, timestamp):
     parser = argparse.ArgumentParser(description='Classification of the ABIDE dataset using a GNN')
 
     # pytorch base
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")  # cuda 0, 1
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")  # cuda 0, 1
     parser.add_argument("--device", default=device)
 
     # training hyperparameter
     # parser.add_argument('--seed', type=int, default=500, help='random seed')
-    parser.add_argument('--lr', default=1e-5, type=float, help='learning rate')
+    parser.add_argument('--lr', default=1e-5, type=float, help='learning rate') # 1e-5, 5e-6
     parser.add_argument('--weight_decay', default=1e-2, type=float, help='weight decay')
     parser.add_argument('--batch_size', default=16, type=int, help='batch size')
     parser.add_argument('--num_epochs', default=1000, type=int, help='num_epochs')
@@ -164,26 +159,27 @@ def main(seed, timestamp):
     args = parser.parse_args('')
     print('Arguments: \n', args)
 
-    data_folder = args.root_dir  # '\Data\
-    subject_ids = get_ids(data_folder)
+    wandb.init(project="ASD_classification", name=f"NYU_multi_site_{args.timestamp}")
+    wandb.config.update(args)
+
     args.embCh = list(map(int, re.findall("\d+", str(args.embCh))))
 
-    print(seed)
+    print(f"seed: {seed}")
     set_seed(seed)
 
     ## Load dataset
-    NYU_site_data = np.load('Data/Data_folder/NYU_site_data.npy')
-    NYU_site_label = np.load('Data/Data_folder/NYU_site_label.npy')
-    PITT_site_data = np.load('Data/Data_folder/PITT_site_data.npy')
-    PITT_site_label = np.load('Data/Data_folder/PITT_site_label.npy')
-    UM_1_site_data = np.load('Data/Data_folder/UM_1_site_data.npy')
-    UM_1_site_label = np.load('Data/Data_folder/UM_1_site_label.npy')
-    USM_site_data = np.load('Data/Data_folder/USM_site_data.npy')
-    USM_site_label = np.load('Data/Data_folder/USM_site_label.npy')
-    YALE_site_data = np.load('Data/Data_folder/YALE_site_data.npy')
-    YALE_site_label = np.load('Data/Data_folder/YALE_site_label.npy')
-    UCLA_1_site_data = np.load('Data/Data_folder/UCLA_1_site_data.npy')
-    UCLA_1_site_label = np.load('Data/Data_folder/UCLA_1_site_label.npy')
+    NYU_site_data = np.load(f'{args.root_dir}NYU_site_data.npy')
+    NYU_site_label = np.load(f'{args.root_dir}NYU_site_label.npy')
+    PITT_site_data = np.load(f'{args.root_dir}PITT_site_data.npy')
+    PITT_site_label = np.load(f'{args.root_dir}PITT_site_label.npy')
+    UM_1_site_data = np.load(f'{args.root_dir}UM_1_site_data.npy')
+    UM_1_site_label = np.load(f'{args.root_dir}UM_1_site_label.npy')
+    USM_site_data = np.load(f'{args.root_dir}USM_site_data.npy')
+    USM_site_label = np.load(f'{args.root_dir}USM_site_label.npy')
+    YALE_site_data = np.load(f'{args.root_dir}YALE_site_data.npy')
+    YALE_site_label = np.load(f'{args.root_dir}YALE_site_label.npy')
+    UCLA_1_site_data = np.load(f'{args.root_dir}UCLA_1_site_data.npy')
+    UCLA_1_site_label = np.load(f'{args.root_dir}UCLA_1_site_label.npy')
 
     # To seperate train & test: only use NYU test
     NYU_train, NYU_test, NYU_train_label, NYU_test_label = train_test_split(NYU_site_data, NYU_site_label, test_size=0.3, random_state=seed)  # 7:3
@@ -206,59 +202,54 @@ def main(seed, timestamp):
 
 if __name__ == "__main__":
     total_result = [[0 for j in range(5)] for i in range(4)]
-    avg_test_loss = []
-    avg_test_acc = []
-    avg_test_sen = []
-    avg_test_spe = []
-    avg_test_f1 = []
+
 
     timestamp = datetime.today().strftime("%Y%m%d%H%M%S")
     seed_list = [42, 56, 96, 100, 777]
     for s in seed_list:
         args, test_loss, test_acc, test_sen, test_spe, test_f1 = main(s, timestamp)
-        avg_test_loss.append(test_loss)
-        avg_test_acc.append(test_acc)
-        avg_test_sen.append(test_sen)
-        avg_test_spe.append(test_spe)
-        avg_test_f1.append(test_f1)
 
-    print("NYU site dataset results")
-    print("test loss: ", np.mean(np.array(avg_test_loss)))
-    print("test acc: ", np.mean(np.array(avg_test_acc)))
-    print("test sen: ", np.mean(np.array(avg_test_sen)))
-    print("test spe: ", np.mean(np.array(avg_test_spe)))
-    print("test f1: ", np.mean(np.array(avg_test_f1)))
 
-    with open('Data/results/model{}/all_seed_result{}.csv'.format(args.timestamp, args.timestamp), 'w') as f:
+    # save seed initialization
+    with open(f'{args.root_dir}results/model{args.timestamp}/all_seed_result{args.timestamp}.csv', 'w') as f:
         f.write('fold,acc,sen,spec,f1\n')
 
-    n_seed = 1
-    for s in seed_list:
-        result_csv = pd.read_csv(
-            'Data/results/model{}/train_info{}_{}_test.csv'.format(args.timestamp, args.timestamp, s))
-        test_result = result_csv.iloc[-1]
-        with open('Data/results/model{}/all_seed_result{}.csv'.format(args.timestamp, args.timestamp), 'a') as f:
-            f.write('{},{},{},{},{}\n'.format(s, round(test_result[2], 3) * 100, round(test_result[3], 3) * 100,
-                                              round(test_result[4], 3) * 100, round(test_result[5], 3) * 100))
-        total_result[0][n_seed - 1] = round(test_result[2], 3)
-        total_result[1][n_seed - 1] = round(test_result[3], 3)
-        total_result[2][n_seed - 1] = round(test_result[4], 3)
-        total_result[3][n_seed - 1] = round(test_result[5], 3)
-        n_seed += 1
-        print('seed{},{:.2f},{:.2f},{:.2f},{:.2f}'.format(s,
-                                                          round(test_result[2], 3),
-                                                          round(test_result[3], 3),
-                                                          round(test_result[4], 3),
-                                                          round(test_result[5], 3)))
-    with open('Data/results/model{}/all_seed_result{}.csv'.format(args.timestamp, args.timestamp), 'a') as f:
-        f.write('avg,{:.2f},{:.2f},{:.2f},{:.2f}\n'.format(np.mean(total_result[0]) * 100, np.mean(total_result[1]) * 100,
-                                                           np.mean(total_result[2]) * 100, np.mean(total_result[3]) * 100))
-        f.write('std,{:.2f},{:.2f},{:.2f},{:.2f}'.format(np.nanstd(total_result[0], ddof=1) * 100, np.nanstd(total_result[1], ddof=1) * 100,
-                                                         np.nanstd(total_result[2], ddof=1) * 100, np.nanstd(total_result[3], ddof=1) * 100))
 
-    print("=" * 10 + "average results" + "=" * 10)
-    print('avg,{:.2f},{:.2f},{:.2f},{:.2f}'.format(np.mean(total_result[0]) * 100, np.mean(total_result[1]) * 100,
-                                                   np.mean(total_result[2]) * 100, np.mean(total_result[3]) * 100))
-    print('std,{:.2f},{:.2f},{:.2f},{:.2f}'.format(np.nanstd(total_result[0]) * 100, np.nanstd(total_result[1]) * 100,
-                                                   np.nanstd(total_result[2]) * 100, np.mean(total_result[2]) * 100))
+    n_seed = 0
+    for s in seed_list:
+        # load testset result
+        result_csv = pd.read_csv(f'{args.root_dir}results/model{args.timestamp}/train_info{args.timestamp}_{s}_test.csv')
+        # get latest result
+        test_result = result_csv.iloc[-1]
+        # seed, acc, sen, spe, f1
+        with open(f'{args.root_dir}results/model{args.timestamp}/all_seed_result{args.timestamp}.csv', 'a') as f:
+            # round to 3 decimal places
+            f.write(f'{s}, \
+                    {round(test_result.iloc[2], 3) * 100}, \
+                    {round(test_result.iloc[3], 3) * 100}, \
+                    {round(test_result.iloc[4], 3) * 100}, \
+                    {round(test_result.iloc[5], 3) * 100}\n')       
+            
+        total_result[0][n_seed] = round(test_result.iloc[2], 3)
+        total_result[1][n_seed] = round(test_result.iloc[3], 3)
+        total_result[2][n_seed] = round(test_result.iloc[4], 3)
+        total_result[3][n_seed] = round(test_result.iloc[5], 3)
+        n_seed += 1
+
+        print(f"seed{s},{round(test_result.iloc[2], 3):.2f},{round(test_result.iloc[3], 3):.2f},{round(test_result.iloc[4], 3):.2f},{round(test_result.iloc[5], 3):.2f}")
+
+    with open('Data/results/model{}/all_seed_result{}.csv'.format(args.timestamp, args.timestamp), 'a') as f:
+        f.write(f'avg, \
+                {np.mean(total_result[0]) * 100:.2f}, \
+                {np.mean(total_result[1]) * 100:.2f}, \
+                {np.mean(total_result[2]) * 100:.2f}, \
+                {np.mean(total_result[3]) * 100:.2f}\n')
+        f.write(f'std, \
+                {np.nanstd(total_result[0], ddof=1) * 100:.2f}, \
+                {np.nanstd(total_result[1], ddof=1) * 100:.2f}, \
+                {np.nanstd(total_result[2], ddof=1) * 100:.2f}, \
+                {np.nanstd(total_result[3], ddof=1) * 100:.2f}')
+    wandb.log({"avg_acc": np.mean(total_result[0]) * 100, "avg_sen": np.mean(total_result[1]) * 100, "avg_spe": np.mean(total_result[2]) * 100, "avg_f1": np.mean(total_result[3]) * 100})
+    wandb.log({"std_acc": np.nanstd(total_result[0], ddof=1) * 100, "std_sen": np.nanstd(total_result[1], ddof=1) * 100, "std_spe": np.nanstd(total_result[2], ddof=1) * 100, "std_f1": np.nanstd(total_result[3], ddof=1) * 100})
+    wandb.finish()
 
